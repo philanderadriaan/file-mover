@@ -1,5 +1,6 @@
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -32,11 +33,6 @@ public class Main
   private static final String DEST_KEY = "dest";
 
   /**
-   * Exclude regex key in config.
-   */
-  private static final String EXCL_KEY = "excl";
-
-  /**
    * Delete regex key in config.
    */
   private static final String DEL_KEY = "del";
@@ -65,38 +61,39 @@ public class Main
       // Move files/folders from source to destination.
       for (File file : srcFolder.listFiles())
       {
-        if (!match(file, EXCL_KEY))
+        String destFileNm = destFolder.getAbsolutePath() + "\\" + file.getName();
+        try
         {
-          String destFileNm = destFolder.getAbsolutePath() + "\\" + file.getName();
-
-          try
-          {
-            // Move file to destination.
-            log("Moving " + file.getAbsolutePath() + " -> " + destFileNm);
-            Files.move(file.toPath(), Paths.get(destFileNm),
-                       StandardCopyOption.REPLACE_EXISTING);
-          }
-          catch (DirectoryNotEmptyException e)
-          {
-            // Delete non-empty folder from destination and move again.
-            log("Deleting " + destFileNm);
-            FileUtils.deleteDirectory(new File(destFileNm));
-            log("Moving " + file.getAbsolutePath() + " -> " + destFileNm);
-            Files.move(file.toPath(), Paths.get(destFileNm),
-                       StandardCopyOption.REPLACE_EXISTING);
-          }
-          catch (Exception e)
-          {
-            // Log and ignore other exceptions.
-            e.printStackTrace();
-          }
+          // Move file to destination.
+          log("Moving " + file.getAbsolutePath() + " -> " + destFileNm);
+          Files.move(file.toPath(), Paths.get(destFileNm),
+                     StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (DirectoryNotEmptyException e)
+        {
+          // Delete non-empty folder from destination and move again.
+          log("Deleting " + destFileNm);
+          FileUtils.deleteDirectory(new File(destFileNm));
+          log("Moving " + file.getAbsolutePath() + " -> " + destFileNm);
+          Files.move(file.toPath(), Paths.get(destFileNm),
+                     StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (AccessDeniedException e)
+        {
+          // Log and ignore other exceptions.
+          log(e.getClass().getName());
         }
       }
 
-//      // Delete files defined in config.
-//      Files.walk(destFolder.toPath()).filter(Files::isRegularFile)
-//          .forEach(System.out::println);
-
+      // Delete files defined by regex in config.
+      for (File file : FileUtils.listFiles(destFolder, null, true))
+      {
+        if (match(file, DEL_KEY))
+        {
+          log("Deleting " + file.getAbsolutePath());
+          file.delete();
+        }
+      }
     }
     catch (Exception e)
     {
@@ -128,7 +125,7 @@ public class Main
    */
   private static void log(String msg)
   {
-    System.out.println("[" + new Date() + "] " + msg);
+    System.out.println("[" + new Date() + "]\t" + msg);
   }
 
 }
